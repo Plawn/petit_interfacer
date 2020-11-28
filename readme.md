@@ -5,7 +5,7 @@ It's a module of the **petite_stack**
 ## Whats is that for ?
 
 
-You have a framework that executes a particular prototype of function but you don't want to bother yourself or the end developper with using the exact prototype, then this will help
+You have a framework that executes a particular prototype of function but you don't want to bother yourself or the end developper with using the exact prototype, then this will help.
 
 This lib will attempt to automatically build an interface layer, for your functions without using the `**kwargs` magic and the dynamic nature of it.
 
@@ -13,13 +13,14 @@ This lib will attempt to automatically build an interface layer, for your functi
 
 ```python
 from petit_transformer import (BlindBind, Dataclass, RealOptional,
-                                    interface_binder_for)
+                                    interface_binder_for, Dataclass)
 
 
 def proto(
     worker: RealOptional[Worker],
     session: RealOptional[Session],
     body: BlindBind[RealOptional[Body]], 
+    d: Dataclass,
     cookies: RealOptional[Cookies],
 ): -> Optional[Any]:
 ...
@@ -70,6 +71,27 @@ example3(worker=worker, session=session, body=body, cookies=cookies)
 
 
 So you see that you can make your life easier, by simply defining the prototype, you want to execute and reliying on static checking and binding.
+
+## Dataclass
+
+As you may know dataclasses does not provide a way to check if a class is a dataclass with `issubclass`, so this libs add the `ClassProxyTest` class which can be inherited in order to add support for other classes.
+
+The petit_transformer lib provides the support for the dataclasses based on this technique. You can simply import `Dataclass` from it.
+
+If you need to add another custom class / function, then use `ClassProxyTest`:
+
+### Example: How dataclasses is handled:
+
+```python
+from petit_transformer import ClassProxyTest
+
+class Dataclass(ClassProxyTest):
+    """As dataclasses does not provide a class to be used with issubclass, we use this proxy to handle it
+    """
+    def is_correct_type(t: Any) -> bool:
+        return is_dataclass(t)
+
+```
 
 
 ## Next points :
