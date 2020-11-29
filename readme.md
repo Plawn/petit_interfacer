@@ -12,7 +12,7 @@ This lib will attempt to automatically build an interface layer, for your functi
 ## Example :
 
 ```python
-from petit_transformer import (BlindBind, Dataclass, RealOptional,
+from petit_interfacer import (BlindBind, Dataclass, RealOptional,
                                     interface_binder_for, Dataclass)
 
 
@@ -76,14 +76,14 @@ So you see that you can make your life easier, by simply defining the prototype,
 
 As you may know dataclasses does not provide a way to check if a class is a dataclass with `issubclass`, so this libs add the `ClassProxyTest` class which can be inherited in order to add support for other classes.
 
-The petit_transformer lib provides the support for the dataclasses based on this technique. You can simply import `Dataclass` from it.
+The petit_interfacer lib provides the support for the dataclasses based on this technique. You can simply import `Dataclass` from it.
 
 If you need to add another custom class / function, then use `ClassProxyTest`:
 
 ### Example: How dataclasses is handled:
 
 ```python
-from petit_transformer import ClassProxyTest
+from petit_interfacer import ClassProxyTest
 
 class Dataclass(ClassProxyTest):
     """As dataclasses does not provide a class to be used with issubclass, we use this proxy to handle it
@@ -92,6 +92,10 @@ class Dataclass(ClassProxyTest):
         return is_dataclass(t)
 
 ```
+
+## Using it with basic types:
+
+Inherit the type you want to use it with, as without it, the app can't make the difference between two `int` or two `str`
 
 
 ## Next points :
