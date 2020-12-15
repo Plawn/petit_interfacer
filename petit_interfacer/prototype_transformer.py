@@ -1,7 +1,7 @@
 import functools
 import inspect
 from typing import (Any, Callable, Dict, Final, List, Optional, Set, TypeVar, Union,
-                    get_args, get_origin)
+                    get_args, get_origin, get_type_hints)
 
 from .utils import (ClassProxyTest, clean_union_type,
                     is_blindbind, is_proxy_class, is_real_optional, validate_blindbind)
@@ -56,16 +56,18 @@ def interface_binder_for(func: T) -> Callable[[Callable], T]:
 
     As such you can only have one BindBind parameter per function prototype
     """
-    parameters = inspect.signature(func).parameters
+    parameters = get_type_hints(func)
+    if 'return' in parameters:
+        del parameters['return']
 
     required_names: Set[str] = {
-        name for name, value in parameters.items() if not is_real_optional(value.annotation)
+        name for name, value in parameters.items() if not is_real_optional(value)
     }
     names = [
         name for name in parameters.keys()
     ]
     classes = [
-        cls.annotation for cls in parameters.values()
+        cls for cls in parameters.values()
     ]
 
     # check if only one BlindBind
@@ -74,10 +76,11 @@ def interface_binder_for(func: T) -> Callable[[Callable], T]:
 
     def f(func: Callable):
         res: Dict[str, str] = {}
-        sig = inspect.signature(func)
+        sig = get_type_hints(func)
+        if 'return' in sig:
+            del sig['return']
         handled_params = 0
-        for param_name, value in sig.parameters.items():
-            annotation = value.annotation
+        for param_name, annotation in sig.items():
             if inspect.isclass(annotation):
                 for i, cls in enumerate(classes):
                     if get_origin(cls) is Union:
@@ -108,8 +111,8 @@ def interface_binder_for(func: T) -> Callable[[Callable], T]:
                 res[blind_param] = param_name
         keys = set(res.keys())
 
-        if len(sig.parameters) == handled_params + 1:
-            for key in sig.parameters.keys():
+        if len(sig) == handled_params + 1:
+            for key in sig.keys():
                 if key not in keys:
                     res[blind_param] = key
 
@@ -118,6 +121,7 @@ def interface_binder_for(func: T) -> Callable[[Callable], T]:
             if name not in res:
                 raise Exception(
                     f"Wasn't able to bind all parameters based on annotations for function: {func.__name__}"
+                    f"| failed to bind {name}"
                 )
 
         return transformer(res)(func)
