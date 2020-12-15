@@ -1,11 +1,13 @@
 import functools
 import inspect
-from typing import (Any, Callable, Dict, Final, List, Optional, Set, TypeVar, Union,
-                    get_args, get_origin, get_type_hints)
+from typing import (Any, Callable, Dict, Final, List, Optional, Set, TypeVar,
+                    Union, get_args, get_origin, get_type_hints)
 
-from .utils import (ClassProxyTest, clean_union_type,
-                    is_blindbind, is_proxy_class, is_real_optional, validate_blindbind)
+from .exceptions import MissingHints
+from .utils import (ClassProxyTest, clean_union_type, is_blindbind,
+                    is_proxy_class, is_real_optional, validate_blindbind)
 
+NoneType = type(None)
 T = TypeVar('T')
 U = TypeVar('U')
 
@@ -28,16 +30,14 @@ def adapt_for(all_args: List[str], args: Dict[str, str]) -> Callable[[Callable],
         return functools.wraps(func)(f1)
     return decorator
 
+
 # TODO: not enough type hint
-
-
 def make_transfomer(all_args: List[str]) -> Callable[[Callable], Callable]:
     return functools.partial(adapt_for, all_args)
 
+
 # TODO: type hint seems false
-
-
-def transformer_from_prototype(func: Callable[[T], U]) -> Callable[[Dict[str, str]], Callable[[T], Any]]:
+def transformer_from_prototype(func: Callable[[T], U]):
     return make_transfomer(inspect.signature(func).parameters.keys())
 
 
@@ -59,7 +59,6 @@ def interface_binder_for(func: T) -> Callable[[Callable], T]:
     parameters = get_type_hints(func)
     if 'return' in parameters:
         del parameters['return']
-
     required_names: Set[str] = {
         name for name, value in parameters.items() if not is_real_optional(value)
     }
@@ -79,6 +78,11 @@ def interface_binder_for(func: T) -> Callable[[Callable], T]:
         sig = get_type_hints(func)
         if 'return' in sig:
             del sig['return']
+
+        # in case of None, sig doesn't have any data
+        for n, v in inspect.signature(func).parameters.items():
+            if n not in sig:
+                sig[n] = None
         handled_params = 0
         for param_name, annotation in sig.items():
             if inspect.isclass(annotation):
@@ -119,7 +123,7 @@ def interface_binder_for(func: T) -> Callable[[Callable], T]:
         # validate required names
         for name in required_names:
             if name not in res:
-                raise Exception(
+                raise MissingHints(
                     f"Wasn't able to bind all parameters based on annotations for function: {func.__name__}"
                     f"| failed to bind {name}"
                 )

@@ -4,6 +4,8 @@ from abc import ABC, abstractstaticmethod
 from dataclasses import is_dataclass
 from typing import Any, List, Optional, TypeVar, Union, get_args, get_origin
 
+from .exceptions import TooManyBlindBinds
+
 T = TypeVar('T')
 U = TypeVar('U')
 
@@ -55,6 +57,9 @@ class Dataclass(ClassProxyTest):
         return is_dataclass(t)
 
 
+
+
+
 def validate_blindbind(names: List[str], classes: List[Any]) -> Optional[str]:
     # check if only one BlindBind
     blind_param: Optional[str] = None
@@ -63,7 +68,7 @@ def validate_blindbind(names: List[str], classes: List[Any]) -> Optional[str]:
             if blind_param is None:
                 blind_param = name
             else:
-                raise Exception(
-                    'Invalid prototype, you can only have one BlindBind')
+                raise TooManyBlindBinds(
+                    'Invalid prototype, you can only have one BlindBind'
+                )
     return blind_param
-
