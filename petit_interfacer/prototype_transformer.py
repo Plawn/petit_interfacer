@@ -1,6 +1,6 @@
 import functools
 import inspect
-from typing import (Any, Callable, Dict, Final, List, Optional, TypeVar, Union,
+from typing import (Any, Callable, Dict, Final, List, Optional, Set, TypeVar, Union,
                     get_args, get_origin)
 
 from .utils import (ClassProxyTest, clean_union_type,
@@ -14,6 +14,7 @@ base_code: Final[str] = "lambda {all_params}: func({reduced_params})"
 
 def adapt_for(all_args: List[str], args: Dict[str, str]) -> Callable[[Callable], Callable]:
     def decorator(func: Callable):
+        # TODO: bind remaining params if `func` has more default params than all_args
         string = base_code.format(
             all_params=','.join(all_args),
             reduced_params=','.join(
@@ -28,15 +29,19 @@ def adapt_for(all_args: List[str], args: Dict[str, str]) -> Callable[[Callable],
     return decorator
 
 # TODO: not enough type hint
+
+
 def make_transfomer(all_args: List[str]) -> Callable[[Callable], Callable]:
     return functools.partial(adapt_for, all_args)
 
 # TODO: type hint seems false
+
+
 def transformer_from_prototype(func: Callable[[T], U]) -> Callable[[Dict[str, str]], Callable[[T], Any]]:
     return make_transfomer(inspect.signature(func).parameters.keys())
 
 
-def interface_binder_for(func: Callable):
+def interface_binder_for(func: T) -> Callable[[Callable], T]:
     """Will try to bind two interfaces together by using type hinting:
 
     You can use special annotations for this, such as RealOptional and BlindBind
@@ -53,9 +58,9 @@ def interface_binder_for(func: Callable):
     """
     parameters = inspect.signature(func).parameters
 
-    required_names = [
+    required_names: Set[str] = {
         name for name, value in parameters.items() if not is_real_optional(value.annotation)
-    ]
+    }
     names = [
         name for name in parameters.keys()
     ]
@@ -84,7 +89,7 @@ def interface_binder_for(func: Callable):
                         a = [cls]
                     for c in a:
                         if is_proxy_class(c):
-                            c: ClassProxyTest
+                            # c: ClassProxyTest
                             if c.is_correct_type(annotation):
                                 res[names[i]] = param_name
                                 handled_params += 1
@@ -112,7 +117,7 @@ def interface_binder_for(func: Callable):
         for name in required_names:
             if name not in res:
                 raise Exception(
-                    f"Wasn't able to bind all parameters based on annotations {func.__name__}"
+                    f"Wasn't able to bind all parameters based on annotations for function: {func.__name__}"
                 )
 
         return transformer(res)(func)
