@@ -5,7 +5,7 @@ with open('readme.md', 'r') as f :
 
 setup(
     name='petit_interfacer',
-    version='0.1.0',
+    version='0.1.1',
     description='Convert your function prototypes to work faster',
     packages=['petit_interfacer'],
     url='https://github.com/Plawn/petit_interfacer',
