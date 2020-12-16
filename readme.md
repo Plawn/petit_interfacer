@@ -1,5 +1,8 @@
 # Prototype transformer
 
+![Codecov](https://img.shields.io/codecov/c/gh/Plawn/petit_interfacer)
+[![GitHub license](https://img.shields.io/github/license/Plawn/petit_interfacer)](https://github.com/Plawn/petit_interfacer/blob/main/LICENSE.TXT)
+
 It's a module of the **petite_stack**
 
 ## Whats is that for ?
