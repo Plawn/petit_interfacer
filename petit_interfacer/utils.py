@@ -57,9 +57,6 @@ class Dataclass(ClassProxyTest):
         return is_dataclass(t)
 
 
-
-
-
 def validate_blindbind(names: List[str], classes: List[Any]) -> Optional[str]:
     # check if only one BlindBind
     blind_param: Optional[str] = None
