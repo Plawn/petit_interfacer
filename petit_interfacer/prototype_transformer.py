@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import functools
 import inspect
 from typing import (Any, Callable, Dict, Final, List, Optional, Set, TypeVar,
@@ -6,28 +7,57 @@ from typing import (Any, Callable, Dict, Final, List, Optional, Set, TypeVar,
 from .exceptions import MissingHints
 from .utils import (ClassProxyTest, clean_union_type, is_blindbind,
                     is_proxy_class, is_real_optional, validate_blindbind)
-
+import asyncio
 NoneType = type(None)
 T = TypeVar('T')
 U = TypeVar('U')
 
 base_code: Final[str] = "lambda {all_params}: func({reduced_params})"
 
+async_string = """
+async def test({all_params}):
+    return await func({reduced_params})
+output = test
+"""
+
+
+def get_parameters_hint(func: Callable) -> Dict[str, Any]:
+    parameters = get_type_hints(func)
+    if 'return' in parameters:
+        del parameters['return']
+    return parameters
+
+
+@dataclass
+class Exchanger:
+    input: Callable
+    output: Callable
+
 
 def adapt_for(all_args: List[str], args: Dict[str, str]) -> Callable[[Callable], Callable]:
     def decorator(func: Callable):
         # TODO: bind remaining params if `func` has more default params than all_args
-        string = base_code.format(
-            all_params=','.join(all_args),
-            reduced_params=','.join(
-                f'{new_name}={old_name}' for old_name, new_name in args.items())
-        )
-        # print(string)
-        f1: Callable = eval(
-            string,
-            {'func': func},
-        )
-        return functools.wraps(func)(f1)
+        new_func = None
+        if asyncio.iscoroutinefunction(func):
+            context = {'output': None, 'func': func}
+            string = async_string.format(
+                all_params=','.join(all_args),
+                reduced_params=','.join(
+                    f'{new_name}={old_name}' for old_name, new_name in args.items())
+            )
+            exec(string, context)
+            new_func = context['output']
+        else:
+            string = base_code.format(
+                all_params=','.join(all_args),
+                reduced_params=','.join(
+                    f'{new_name}={old_name}' for old_name, new_name in args.items())
+            )
+            new_func: Callable = eval(
+                string,
+                {'func': func},
+            )
+        return functools.wraps(func)(new_func)
     return decorator
 
 
@@ -56,18 +86,12 @@ def interface_binder_for(func: T) -> Callable[[Callable], T]:
 
     As such you can only have one BindBind parameter per function prototype
     """
-    parameters = get_type_hints(func)
-    if 'return' in parameters:
-        del parameters['return']
+    parameters = get_parameters_hint(func)
     required_names: Set[str] = {
         name for name, value in parameters.items() if not is_real_optional(value)
     }
-    names = [
-        name for name in parameters.keys()
-    ]
-    classes = [
-        cls for cls in parameters.values()
-    ]
+    names = [name for name in parameters.keys()]
+    classes = [cls for cls in parameters.values()]
 
     # check if only one BlindBind
     blind_param = validate_blindbind(names, classes)
@@ -75,9 +99,7 @@ def interface_binder_for(func: T) -> Callable[[Callable], T]:
 
     def f(func: Callable):
         res: Dict[str, str] = {}
-        sig = get_type_hints(func)
-        if 'return' in sig:
-            del sig['return']
+        sig = get_parameters_hint(func)
 
         # in case of None, sig doesn't have any data
         for n, v in inspect.signature(func).parameters.items():

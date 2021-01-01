@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 
 import unittest
 from dataclasses import dataclass
@@ -65,3 +66,15 @@ class BasicTests(unittest.TestCase):
             pass  # pragma: no cover
         with self.assertRaises(TooManyBlindBinds):
             interfacer = interface_binder_for(f)
+
+    def test_async_binder(self):
+        async def f(a:RealOptional[Port], b:Response):
+            pass  # pragma: no cover
+        interfacer = interface_binder_for(f)
+        @interfacer
+        async def f1(b:Response):
+            await asyncio.sleep(0.1)
+            return b
+        loop = asyncio.get_event_loop()
+        res = loop.run_until_complete(f1(10, 20))
+        self.assertEqual(res, 20)
