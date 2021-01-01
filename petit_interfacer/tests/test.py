@@ -78,3 +78,25 @@ class BasicTests(unittest.TestCase):
         loop = asyncio.get_event_loop()
         res = loop.run_until_complete(f1(10, 20))
         self.assertEqual(res, 20)
+
+    def test_expected_async(self):
+        async def f(a:RealOptional[Port], b:Response):
+            pass  # pragma: no cover
+        
+        interfacer = interface_binder_for(f)
+        with self.assertRaises(TypeError):
+            @interfacer
+            def f1(b:Response):
+                return b # pragma: no cover
+        
+    def test_expected_sync(self):
+        def f(a:RealOptional[Port], b:Response):
+            pass  # pragma: no cover
+        
+        interfacer = interface_binder_for(f)
+        with self.assertRaises(TypeError):
+            @interfacer
+            async def f1(b:Response):
+                asyncio.sleep(1) # pragma: no cover
+                return b # pragma: no cover
+        

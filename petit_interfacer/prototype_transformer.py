@@ -28,17 +28,14 @@ def get_parameters_hint(func: Callable) -> Dict[str, Any]:
     return parameters
 
 
-@dataclass
-class Exchanger:
-    input: Callable
-    output: Callable
-
-
-def adapt_for(all_args: List[str], args: Dict[str, str]) -> Callable[[Callable], Callable]:
+def adapt_for(all_args: List[str], args: Dict[str, str], is_async: bool) -> Callable[[Callable], Callable]:
     def decorator(func: Callable):
         # TODO: bind remaining params if `func` has more default params than all_args
         new_func = None
         if asyncio.iscoroutinefunction(func):
+            if not is_async:
+                raise TypeError(
+                    'Expected sync function and got async function')
             context = {'output': None, 'func': func}
             string = async_string.format(
                 all_params=','.join(all_args),
@@ -48,6 +45,9 @@ def adapt_for(all_args: List[str], args: Dict[str, str]) -> Callable[[Callable],
             exec(string, context)
             new_func = context['output']
         else:
+            if is_async:
+                raise TypeError(
+                    'Expected async function and got sync function')
             string = base_code.format(
                 all_params=','.join(all_args),
                 reduced_params=','.join(
@@ -71,7 +71,7 @@ def transformer_from_prototype(func: Callable[[T], U]):
     return make_transfomer(inspect.signature(func).parameters.keys())
 
 
-def interface_binder_for(func: T) -> Callable[[Callable], T]:
+def interface_binder_for(proto: T) -> Callable[[Callable], T]:
     """Will try to bind two interfaces together by using type hinting:
 
     You can use special annotations for this, such as RealOptional and BlindBind
@@ -86,16 +86,16 @@ def interface_binder_for(func: T) -> Callable[[Callable], T]:
 
     As such you can only have one BindBind parameter per function prototype
     """
-    parameters = get_parameters_hint(func)
+    parameters = get_parameters_hint(proto)
     required_names: Set[str] = {
         name for name, value in parameters.items() if not is_real_optional(value)
     }
     names = [name for name in parameters.keys()]
     classes = [cls for cls in parameters.values()]
-
+    is_async = asyncio.iscoroutinefunction(proto)
     # check if only one BlindBind
     blind_param = validate_blindbind(names, classes)
-    transformer = transformer_from_prototype(func)
+    transformer = transformer_from_prototype(proto)
 
     def f(func: Callable):
         res: Dict[str, str] = {}
@@ -150,5 +150,5 @@ def interface_binder_for(func: T) -> Callable[[Callable], T]:
                     f"| failed to bind {name}"
                 )
 
-        return transformer(res)(func)
+        return transformer(res, is_async)(func)
     return f
