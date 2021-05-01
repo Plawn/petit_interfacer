@@ -2,13 +2,18 @@ from __future__ import annotations
 
 from abc import ABC, abstractstaticmethod
 from dataclasses import is_dataclass
-from typing import Any, List, Optional, TypeVar, Union, get_args, get_origin
+from typing import Any, Callable, List, Optional, TypeVar, Union, get_args, get_origin, get_type_hints, Dict
 
 from .exceptions import TooManyBlindBinds
 
 T = TypeVar('T')
 U = TypeVar('U')
 
+def get_parameters_hint(func: Callable) -> Dict[str, Any]:
+    parameters = get_type_hints(func)
+    if 'return' in parameters:
+        del parameters['return']
+    return parameters
 
 class ClassProxyTest(ABC):
     """This class can be used to handle some types which can't be handle with issubclass
@@ -34,6 +39,9 @@ def is_real_optional(t: Any) -> bool:
 class _BlindBind:
     ...
 
+class _Remove:
+    ...
+
 
 def is_blindbind(t: Any) -> bool:
     return get_origin(t) is Union and _BlindBind in get_args(t)
@@ -48,6 +56,7 @@ def clean_union_type(l: list) -> None:
 
 RealOptional = Union[T, _RealOptional]
 BlindBind = Union[T, _BlindBind]
+Remove = Union[T, _Remove]
 
 
 class Dataclass(ClassProxyTest):
@@ -69,3 +78,19 @@ def validate_blindbind(names: List[str], classes: List[Any]) -> Optional[str]:
                     'Invalid prototype, you can only have one BlindBind'
                 )
     return blind_param
+
+
+def is_already_described_prototype(func: Callable, proto: Callable) -> bool:
+    func_proto = get_parameters_hint(func)
+    l = list(func_proto.values())
+    described_proto = get_parameters_hint(proto)
+
+
+    for i, value in enumerate(described_proto.values()):
+        try:
+            if not issubclass(value, l[i]):
+                return False
+        except Exception as e:
+            # print(value, e)
+            return False
+    return True

@@ -1,13 +1,13 @@
-from dataclasses import dataclass
+import asyncio
 import functools
 import inspect
 from typing import (Any, Callable, Dict, Final, List, Optional, Set, TypeVar,
                     Union, get_args, get_origin, get_type_hints)
 
 from .exceptions import MissingHints
-from .utils import (ClassProxyTest, clean_union_type, is_blindbind,
-                    is_proxy_class, is_real_optional, validate_blindbind)
-import asyncio
+from .utils import (clean_union_type, is_already_described_prototype,
+                    is_proxy_class, is_real_optional, validate_blindbind, get_parameters_hint)
+
 NoneType = type(None)
 T = TypeVar('T')
 U = TypeVar('U')
@@ -15,29 +15,29 @@ U = TypeVar('U')
 base_code: Final[str] = "lambda {all_params}: func({reduced_params})"
 
 async_string = """
-async def test({all_params}):
+async def {func_name}({all_params}):
     return await func({reduced_params})
-output = test
+output = {func_name}
 """
 
 
-def get_parameters_hint(func: Callable) -> Dict[str, Any]:
-    parameters = get_type_hints(func)
-    if 'return' in parameters:
-        del parameters['return']
-    return parameters
-
-
-def adapt_for(all_args: List[str], args: Dict[str, str], is_async: bool) -> Callable[[Callable], Callable]:
+def adapt_for(all_args: List[str], proto: Callable[[T], U], args: Dict[str, str], is_async: bool) -> Callable[[Callable], Callable]:
     def decorator(func: Callable):
+        if is_already_described_prototype(func, proto):
+            # no need to try to bind, the func has the good amount of args
+            # TODO: assert!
+            # should we add more feature?
+            return func
         # TODO: bind remaining params if `func` has more default params than all_args
         new_func = None
         if asyncio.iscoroutinefunction(func):
             if not is_async:
                 raise TypeError(
-                    'Expected sync function and got async function')
+                    'Expected sync function and got async function'
+                )
             context = {'output': None, 'func': func}
             string = async_string.format(
+                func_name=func.__name__,
                 all_params=','.join(all_args),
                 reduced_params=','.join(
                     f'{new_name}={old_name}' for old_name, new_name in args.items())
@@ -62,13 +62,13 @@ def adapt_for(all_args: List[str], args: Dict[str, str], is_async: bool) -> Call
 
 
 # TODO: not enough type hint
-def make_transfomer(all_args: List[str]) -> Callable[[Callable], Callable]:
-    return functools.partial(adapt_for, all_args)
+def make_transfomer(all_args: List[str], proto: Callable[[T], U]) -> Callable[[Callable], Callable]:
+    return functools.partial(adapt_for, all_args, proto)
 
 
 # TODO: type hint seems false
-def transformer_from_prototype(func: Callable[[T], U]):
-    return make_transfomer(inspect.signature(func).parameters.keys())
+def transformer_from_prototype(proto: Callable[[T], U]):
+    return make_transfomer(inspect.signature(proto).parameters.keys(), proto)
 
 
 def interface_binder_for(proto: T) -> Callable[[Callable], T]:
